@@ -4,6 +4,7 @@ import re
 from urllib.parse import urljoin
 from collections import deque
 import csv
+import os
 
 EMAIL_REGEX = r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-z]{2,}"
 ALLOWED_KEYWORDS = ["links", "partners", "contact", "friends"]
@@ -19,7 +20,6 @@ def get_links(html, base_url, depth):
         if not href.startswith("http"):
             continue
 
-        # Only allow deeper traversal (depth >= 1) on "links" or "partners" pages
         path = href.lower()
         if depth == 0:  
             # From the seed page, allow all links
@@ -35,6 +35,16 @@ def crawl(start_url, max_depth=2, max_pages=50, output_file="emails.csv"):
     results = []  # store tuples (url, email)
     queue = deque([(start_url, 0)])
     
+    # Load existing results if CSV exists
+    existing_results = set()
+    if os.path.exists(output_file):
+        with open(output_file, mode="r", encoding="utf-8") as f:
+            reader = csv.reader(f)
+            next(reader, None)  # skip header
+            for row in reader:
+                if len(row) == 2:
+                    existing_results.add((row[0], row[1]))
+
     while queue and len(visited) < max_pages:
         url, depth = queue.popleft()
         if url in visited or depth > max_depth:
@@ -56,7 +66,9 @@ def crawl(start_url, max_depth=2, max_pages=50, output_file="emails.csv"):
         if found_emails:
             print(f"Found {found_emails} on {url}")
             for email in found_emails:
-                results.append((url, email))
+                if (url, email) not in existing_results:
+                    results.append((url, email))
+                    existing_results.add((url, email))
 
         # Extract and filter links based on depth
         links = get_links(html, url, depth)
@@ -64,18 +76,20 @@ def crawl(start_url, max_depth=2, max_pages=50, output_file="emails.csv"):
             if link not in visited:
                 queue.append((link, depth + 1))
 
-    # Write results to CSV
+    # Write results to CSV (append mode)
     if results:
-        with open(output_file, mode="w", newline="", encoding="utf-8") as f:
+        file_exists = os.path.exists(output_file)
+        with open(output_file, mode="a", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
-            writer.writerow(["URL", "Email"])  # header
+            if not file_exists:
+                writer.writerow(["URL", "Email"])  # write header only once
             writer.writerows(results)
-        print(f"\n✅ Saved {len(results)} emails to {output_file}")
+        print(f"\n✅ Saved {len(results)} new emails to {output_file}")
     else:
-        print("\n⚠️ No emails found.")
+        print("\n⚠️ No new emails found.")
 
     return results
 
 if __name__ == "__main__":
     start = "https://arsenalcore.com/arsenal-blogs/"
-    all_emails = crawl(start, max_depth=3, max_pages=2500, output_file="emails.csv")
+    all_emails = crawl(start, max_depth=5, max_pages=2500, output_file="emails.csv")
