@@ -5,6 +5,7 @@ from urllib.parse import urljoin
 from collections import deque
 import csv
 import os
+from datetime import datetime
 
 EMAIL_REGEX = r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-z]{2,}"
 ALLOWED_KEYWORDS = ["links", "partners", "contact", "friends"]
@@ -32,7 +33,7 @@ def get_links(html, base_url, depth):
 
 def crawl(start_url, max_depth=2, max_pages=50, output_file="emails.csv"):
     visited = set()
-    results = []  # store tuples (url, email)
+    results = []  # store tuples (url, email, timestamp)
     queue = deque([(start_url, 0)])
     
     # Load existing results if CSV exists
@@ -42,7 +43,7 @@ def crawl(start_url, max_depth=2, max_pages=50, output_file="emails.csv"):
             reader = csv.reader(f)
             next(reader, None)  # skip header
             for row in reader:
-                if len(row) == 2:
+                if len(row) >= 2:
                     existing_results.add((row[0], row[1]))
 
     while queue and len(visited) < max_pages:
@@ -67,7 +68,8 @@ def crawl(start_url, max_depth=2, max_pages=50, output_file="emails.csv"):
             print(f"Found {found_emails} on {url}")
             for email in found_emails:
                 if (url, email) not in existing_results:
-                    results.append((url, email))
+                    timestamp = datetime.utcnow().isoformat()
+                    results.append((url, email, timestamp))
                     existing_results.add((url, email))
 
         # Extract and filter links based on depth
@@ -82,7 +84,7 @@ def crawl(start_url, max_depth=2, max_pages=50, output_file="emails.csv"):
         with open(output_file, mode="a", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
             if not file_exists:
-                writer.writerow(["URL", "Email"])  # write header only once
+                writer.writerow(["URL", "Email", "Timestamp"])  # header with timestamp
             writer.writerows(results)
         print(f"\n✅ Saved {len(results)} new emails to {output_file}")
     else:
@@ -92,4 +94,4 @@ def crawl(start_url, max_depth=2, max_pages=50, output_file="emails.csv"):
 
 if __name__ == "__main__":
     start = "https://arsenalcore.com/arsenal-blogs/"
-    all_emails = crawl(start, max_depth=5, max_pages=2500, output_file="emails.csv")
+    all_emails = crawl(start, max_depth=3, max_pages=2500, output_file="emails.csv")
