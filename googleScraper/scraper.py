@@ -8,19 +8,25 @@ keyword = ""
 
 EMAIL_REGEX = r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-z]{2,}"
 
-def get_search_results(query, num_results=20):
-    """Fetch search results using SerpAPI."""
+def get_search_results(query, results_per_page=10, pages=2):
+    """Fetch multiple pages of search results using SerpAPI."""
+    all_links = []
     url = "https://serpapi.com/search"
-    params = {
-        "engine": "google",
-        "q": query,
-        "num": num_results,
-        "api_key": API_KEY,
-    }
-    response = requests.get(url, params=params)
-    data = response.json()
-    links = [res["link"] for res in data.get("organic_results", [])]
-    return links
+
+    for page in range(pages):
+        params = {
+            "engine": "google",
+            "q": query,
+            "num": results_per_page,
+            "start": page * results_per_page,  # page offset
+            "api_key": API_KEY,
+        }
+        response = requests.get(url, params=params)
+        data = response.json()
+        links = [res["link"] for res in data.get("organic_results", [])]
+        all_links.extend(links)
+
+    return all_links
 
 def extract_emails_from_url(url):
     """Scrape a page and extract emails."""
@@ -45,7 +51,7 @@ def find_contact_page(base_url, soup):
     return None
 
 def main():
-    links = get_search_results(keyword)
+    links = get_search_results(keyword, results_per_page=10, pages=2)  # ~20 results
     print(f"Found {len(links)} links for keyword '{keyword}'")
 
     all_emails = {}
