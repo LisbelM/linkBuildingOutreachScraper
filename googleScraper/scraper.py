@@ -3,14 +3,20 @@ from bs4 import BeautifulSoup
 import re
 from urllib.parse import urljoin, urlparse
 
-API_KEY = ""
-keyword = ""
+API_KEY = "YOUR_SERPAPI_KEY"
+
+# Multiple keywords to search
+KEYWORDS = [
+    "sports analytics companies",
+    "soccer betting predictions",
+    "football data providers",
+]
 
 EMAIL_REGEX = r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-z]{2,}"
 
 def get_search_results(query, results_per_page=10, pages=2):
     """Fetch multiple pages of search results using SerpAPI."""
-    all_links = []
+    all_links = set()  # use set to deduplicate
     url = "https://serpapi.com/search"
 
     for page in range(pages):
@@ -24,9 +30,9 @@ def get_search_results(query, results_per_page=10, pages=2):
         response = requests.get(url, params=params)
         data = response.json()
         links = [res["link"] for res in data.get("organic_results", [])]
-        all_links.extend(links)
+        all_links.update(links)
 
-    return all_links
+    return list(all_links)
 
 def extract_emails_from_url(url):
     """Scrape a page and extract emails."""
@@ -50,7 +56,9 @@ def find_contact_page(base_url, soup):
             return urljoin(base_url, a["href"])
     return None
 
-def main():
+def scrape_keyword(keyword):
+    """Run scraping workflow for one keyword and return emails found."""
+    print(f"\n===== Searching for: {keyword} =====")
     links = get_search_results(keyword, results_per_page=10, pages=2)  # ~20 results
     print(f"Found {len(links)} links for keyword '{keyword}'")
 
@@ -69,11 +77,22 @@ def main():
         if site_emails:
             all_emails[link] = list(site_emails)
 
+    return all_emails
+
+def main():
+    compiled_results = {}
+
+    for keyword in KEYWORDS:
+        keyword_results = scrape_keyword(keyword)
+        compiled_results[keyword] = keyword_results
+
     # Print results
-    for site, emails in all_emails.items():
-        print(f"\n{site}")
-        for email in emails:
-            print(f"  {email}")
+    for keyword, sites in compiled_results.items():
+        print(f"\n===== Results for: {keyword} =====")
+        for site, emails in sites.items():
+            print(f"\n{site}")
+            for email in emails:
+                print(f"  {email}")
 
 if __name__ == "__main__":
     main()
